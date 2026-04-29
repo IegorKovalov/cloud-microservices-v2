@@ -1,8 +1,11 @@
-# Gateway + worker (Phase 4). cpp-frame joins the same network in a later phase.
+# Gateway + worker. WORKER_BASE_URL is for gateway -> worker calls (Phase 5+).
+# cpp-frame joins the same network in a later phase.
 
 services:
   gateway:
     build: ./gateway
+    environment:
+      WORKER_BASE_URL: http://worker:8001
     ports:
       - "8000:8000"
 
