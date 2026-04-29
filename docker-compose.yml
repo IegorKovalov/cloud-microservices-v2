@@ -1,8 +1,12 @@
-# Single-service stack for now (Phase 3). The gateway will later be joined
-# by worker and cpp-frame on the same default Docker network.
+# Gateway + worker (Phase 4). cpp-frame joins the same network in a later phase.
 
 services:
   gateway:
     build: ./gateway
     ports:
       - "8000:8000"
+
+  worker:
+    build: ./worker
+    ports:
+      - "8001:8001"
