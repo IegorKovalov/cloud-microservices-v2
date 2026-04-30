@@ -1,5 +1,4 @@
-# Gateway + worker. WORKER_BASE_URL is for gateway -> worker calls (Phase 5+).
-# cpp-frame joins the same network in a later phase.
+# Gateway, worker, cpp-frame share the default Compose network (Phase 7+).
 
 services:
   gateway:
@@ -13,3 +12,8 @@ services:
     build: ./worker
     ports:
       - "8001:8001"
+
+  cpp-frame:
+    build: ./cpp-frame
+    ports:
+      - "8002:8002"
