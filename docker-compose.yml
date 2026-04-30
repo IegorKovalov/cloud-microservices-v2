@@ -1,21 +1,61 @@
 # Gateway, worker, cpp-frame share the default Compose network (Phase 7+).
+# Healthchecks use a 30s interval so Uvicorn access logs stay quieter than 10s polling.
 
 services:
   gateway:
     build: ./gateway
+    restart: unless-stopped
     environment:
       WORKER_BASE_URL: http://worker:8001
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      worker:
+        condition: service_healthy
 
   worker:
     build: ./worker
+    restart: unless-stopped
     environment:
       CPP_FRAME_BASE_URL: http://cpp-frame:8002
     ports:
       - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      cpp-frame:
+        condition: service_healthy
 
   cpp-frame:
     build: ./cpp-frame
+    restart: unless-stopped
     ports:
       - "8002:8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8002/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s

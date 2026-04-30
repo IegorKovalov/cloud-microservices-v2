@@ -1,12 +1,14 @@
 """Worker service.
 
-Receives frame payloads from the gateway. Phase 9: POST /process forwards to
+Receives frame payloads from the gateway. POST /process forwards to
 cpp-frame POST /process_frame and returns bright_pixel_count.
 """
 
 import os
+import threading
 
 import requests
+from requests import RequestException
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -16,6 +18,24 @@ CPP_FRAME_BASE_URL = os.environ.get(
     "CPP_FRAME_BASE_URL",
     "http://cpp-frame:8002",
 )
+
+_metrics_lock = threading.Lock()
+_request_count = 0
+_error_count = 0
+
+
+def _inc_request() -> None:
+    """Increment total observed HTTP requests (handler entry)."""
+    global _request_count
+    with _metrics_lock:
+        _request_count += 1
+
+
+def _inc_error() -> None:
+    """Increment error counter (failed cpp-frame call)."""
+    global _error_count
+    with _metrics_lock:
+        _error_count += 1
 
 
 class ProcessRequest(BaseModel):
@@ -38,7 +58,23 @@ def health() -> dict[str, str]:
     Returns:
         Dict with a single 'status' key set to 'ok' when the service is up.
     """
+    _inc_request()
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> dict[str, int]:
+    """Return simple request and error counters.
+
+    Returns:
+        Dict with request_count and error_count (monotonic since process start).
+    """
+    _inc_request()
+    with _metrics_lock:
+        return {
+            "request_count": _request_count,
+            "error_count": _error_count,
+        }
 
 
 @app.post("/process")
@@ -54,6 +90,7 @@ def process(body: ProcessRequest) -> dict[str, int]:
     Raises:
         HTTPException: 502 if cpp-frame cannot be reached or returns an error.
     """
+    _inc_request()
     url = f"{CPP_FRAME_BASE_URL.rstrip('/')}/process_frame"
     try:
         response = requests.post(
@@ -61,13 +98,15 @@ def process(body: ProcessRequest) -> dict[str, int]:
             json=body.model_dump(),
             timeout=5.0,
         )
-    except requests.RequestException:
+    except RequestException:
+        _inc_error()
         raise HTTPException(
             status_code=502,
             detail="Could not reach the cpp-frame service",
         ) from None
 
     if not response.ok:
+        _inc_error()
         raise HTTPException(
             status_code=502,
             detail="The cpp-frame service returned an error",

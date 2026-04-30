@@ -24,6 +24,10 @@ RUN g++ -std=c++17 -Wall -Wextra -Werror -pthread -I. -o cpp-frame main.cpp
 
 FROM debian:bookworm-slim
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=builder /src/cpp-frame /app/cpp-frame
 
