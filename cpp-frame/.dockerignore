@@ -1,0 +1,4 @@
+# Do not send the host-built binary into the build context (we compile inside Docker).
+hello
+*.o
+.DS_Store

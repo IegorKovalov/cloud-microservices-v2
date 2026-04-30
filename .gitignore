@@ -5,3 +5,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# C++ local build artifact (Phase 6); image builds compile inside Docker.
+cpp-frame/hello
