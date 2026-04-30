@@ -10,6 +10,8 @@ services:
 
   worker:
     build: ./worker
+    environment:
+      CPP_FRAME_BASE_URL: http://cpp-frame:8002
     ports:
       - "8001:8001"
 

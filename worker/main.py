@@ -1,21 +1,33 @@
 """Worker service.
 
-Receives work from the gateway. For Phase 5, POST /process echoes the input.
-Later it will call cpp-frame to process image data.
+Receives frame payloads from the gateway. Phase 9: POST /process forwards to
+cpp-frame POST /process_frame and returns bright_pixel_count.
 """
 
-from fastapi import FastAPI
+import os
+
+import requests
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Worker")
 
+CPP_FRAME_BASE_URL = os.environ.get(
+    "CPP_FRAME_BASE_URL",
+    "http://cpp-frame:8002",
+)
+
 
 class ProcessRequest(BaseModel):
-    """Payload for /process (Phase 5 echo)."""
+    """Payload for /process (forwarded to cpp-frame)."""
 
-    numbers: list[int] = Field(
+    pixels: list[float] = Field(
         ...,
-        description="List of integers to hand back to the caller.",
+        description="Pixel intensity values for cpp-frame.",
+    )
+    threshold: float = Field(
+        ...,
+        description="Brightness cutoff; pixels >= threshold count as bright.",
     )
 
 
@@ -30,13 +42,36 @@ def health() -> dict[str, str]:
 
 
 @app.post("/process")
-def process(body: ProcessRequest) -> dict[str, list[int]]:
-    """Echo the numbers back to prove the gateway-to-worker path works.
+def process(body: ProcessRequest) -> dict[str, int]:
+    """Forward pixels and threshold to cpp-frame and return its count.
 
     Args:
-        body: Client JSON body with a 'numbers' list.
+        body: JSON with 'pixels' and 'threshold'.
 
     Returns:
-        A dict containing the same 'numbers' list.
+        Dict with 'bright_pixel_count' from cpp-frame.
+
+    Raises:
+        HTTPException: 502 if cpp-frame cannot be reached or returns an error.
     """
-    return {"numbers": body.numbers}
+    url = f"{CPP_FRAME_BASE_URL.rstrip('/')}/process_frame"
+    try:
+        response = requests.post(
+            url,
+            json=body.model_dump(),
+            timeout=5.0,
+        )
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not reach the cpp-frame service",
+        ) from None
+
+    if not response.ok:
+        raise HTTPException(
+            status_code=502,
+            detail="The cpp-frame service returned an error",
+        )
+
+    data = response.json()
+    return {"bright_pixel_count": int(data["bright_pixel_count"])}

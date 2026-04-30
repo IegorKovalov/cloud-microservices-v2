@@ -1,7 +1,7 @@
 """Gateway service.
 
 Single entry point for the cloud-microservices system. Exposes /health and /process;
-/process forwards JSON to the worker over HTTP (Phase 5).
+/process forwards JSON to the worker over HTTP (Phase 9: worker calls cpp-frame).
 """
 
 import os
@@ -18,9 +18,13 @@ WORKER_BASE_URL = os.environ.get("WORKER_BASE_URL", "http://worker:8001")
 class ProcessRequest(BaseModel):
     """Payload for /process (forwarded to the worker)."""
 
-    numbers: list[int] = Field(
+    pixels: list[float] = Field(
         ...,
-        description="List of integers to send to the worker.",
+        description="Pixel intensity values passed through to cpp-frame.",
+    )
+    threshold: float = Field(
+        ...,
+        description="Brightness cutoff forwarded to cpp-frame.",
     )
 
 
@@ -36,13 +40,13 @@ def health() -> dict[str, str]:
 
 @app.post("/process")
 def process(body: ProcessRequest) -> dict:
-    """Forward a list of numbers to the worker and return its response.
+    """Forward frame payload to the worker and return cpp-frame's count.
 
     Args:
-        body: JSON body with a 'numbers' list.
+        body: JSON body with 'pixels' and 'threshold'.
 
     Returns:
-        JSON object returned by the worker on success.
+        JSON object from the worker (bright_pixel_count) on success.
 
     Raises:
         HTTPException: 502 if the worker cannot be reached or returns an error.
